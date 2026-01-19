@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BC Marginal Tax Rate Calculator (2024)</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for the visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto px-4 py-8 md:py-12">
+        <header class="text-center mb-8 md:mb-12">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">British Columbia Marginal Tax Rate Calculator</h1>
+            <p class="text-md md:text-lg text-gray-600 mt-2">Visualize your 2024 federal and provincial income taxes.</p>
+        </header>
+
+        <main class="max-w-4xl mx-auto">
+            <!-- Input Section -->
+            <div class="bg-white p-6 rounded-xl shadow-md mb-8">
+                <div class="flex justify-between items-baseline mb-4">
+                    <label for="incomeNumber" class="block text-lg font-medium text-gray-700">Annual Income:</label>
+                    <div class="flex items-center bg-gray-100 p-2 rounded-md">
+                        <span class="text-gray-500 text-2xl mr-2">$</span>
+                        <input type="number" id="incomeNumber" step="1000" class="w-48 text-right bg-transparent text-2xl font-semibold border-none focus:ring-0" value="80000">
+                    </div>
+                </div>
+                <input type="range" id="incomeSlider" min="0" max="500000" step="1000" value="80000" class="w-full h-3 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-blue-600">
+            </div>
+
+            <!-- Results Section -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white p-6 rounded-xl shadow-md text-center">
+                    <h3 class="text-lg font-medium text-gray-500">Total Tax Payable</h3>
+                    <p id="total-tax" class="text-3xl font-bold text-blue-600 mt-2">$0.00</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-md text-center">
+                    <h3 class="text-lg font-medium text-gray-500">Income After Taxes</h3>
+                    <p id="after-tax-income" class="text-3xl font-bold text-indigo-600 mt-2">$0.00</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-md text-center">
+                    <h3 class="text-lg font-medium text-gray-500">Average Tax Rate</h3>
+                    <p id="average-rate" class="text-3xl font-bold text-green-600 mt-2">0.00%</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-md text-center">
+                    <h3 class="text-lg font-medium text-gray-500">Marginal Tax Rate</h3>
+                    <p id="marginal-rate" class="text-3xl font-bold text-purple-600 mt-2">0.00%</p>
+                </div>
+            </div>
+
+            <!-- Visualization Section -->
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Income Tax Breakdown</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                    <!-- Left Column: Chart -->
+                    <div class="h-[48rem] w-full">
+                         <canvas id="taxChart"></canvas>
+                    </div>
+                    <!-- Right Column: Breakdown Table -->
+                    <div id="tax-breakdown-table" class="space-y-2">
+                        <!-- Dynamic content will be generated here by script -->
+                    </div>
+                </div>
+            </div>
+             <footer class="text-center mt-8 text-sm text-gray-500">
+                <p>This calculator is for informational purposes only and should not be considered financial advice. It uses the 2024 tax brackets and does not account for all possible deductions or credits.</p>
+            </footer>
+        </main>
+    </div>
+
+    <script>
+        // 2024 Tax Bracket Data
+        const federalBrackets = [
+            { limit: 55867, rate: 0.15 },
+            { limit: 111733, rate: 0.205 },
+            { limit: 173205, rate: 0.26 },
+            { limit: 246752, rate: 0.29 },
+            { limit: Infinity, rate: 0.33 }
+        ];
+
+        const bcBrackets = [
+            { limit: 47937, rate: 0.0506 },
+            { limit: 95875, rate: 0.077 },
+            { limit: 110076, rate: 0.105 },
+            { limit: 133664, rate: 0.1229 },
+            { limit: 181232, rate: 0.147 },
+            { limit: 252752, rate: 0.168 },
+            { limit: Infinity, rate: 0.205 }
+        ];
+
+        const incomeNumberInput = document.getElementById('incomeNumber');
+        const incomeSliderInput = document.getElementById('incomeSlider');
+        const totalTaxEl = document.getElementById('total-tax');
+        const afterTaxIncomeEl = document.getElementById('after-tax-income');
+        const averageRateEl = document.getElementById('average-rate');
+        const marginalRateEl = document.getElementById('marginal-rate');
+        const chartCanvas = document.getElementById('taxChart');
+        let taxChart;
+
+        // --- Core Calculation Logic ---
+        function calculateTax(income) {
+            let federalTax = 0;
+            let bcTax = 0;
+            let lastFedLimit = 0;
+            let lastBcLimit = 0;
+
+            // Calculate Federal Tax
+            for (const bracket of federalBrackets) {
+                if (income > lastFedLimit) {
+                    const taxableInBracket = Math.min(income, bracket.limit) - lastFedLimit;
+                    federalTax += taxableInBracket * bracket.rate;
+                }
+                lastFedLimit = bracket.limit;
+            }
+
+            // Calculate BC Tax
+            for (const bracket of bcBrackets) {
+                if (income > lastBcLimit) {
+                    const taxableInBracket = Math.min(income, bracket.limit) - lastBcLimit;
+                    bcTax += taxableInBracket * bracket.rate;
+                }
+                lastBcLimit = bracket.limit;
+            }
+            
+            const totalTax = federalTax + bcTax;
+            const averageRate = income > 0 ? (totalTax / income) * 100 : 0;
+            const incomeAfterTaxes = income - totalTax;
+
+            // Find Marginal Rate
+            const federalMarginalRate = federalBrackets.find(b => income <= b.limit)?.rate || 0;
+            const bcMarginalRate = bcBrackets.find(b => income <= b.limit)?.rate || 0;
+            const combinedMarginalRate = (federalMarginalRate + bcMarginalRate) * 100;
+
+
+            return { totalTax, averageRate, combinedMarginalRate, federalTax, bcTax, incomeAfterTaxes };
+        }
+
+        // --- Chart Creation and Update Logic ---
+        function getChartData(income) {
+            const allLimits = [...new Set([0, ...federalBrackets.map(b => b.limit), ...bcBrackets.map(b => b.limit)])]
+                .filter(limit => limit !== Infinity && limit <= income)
+                .sort((a, b) => a - b);
+            
+            if (income > 0 && !allLimits.includes(income)) {
+                allLimits.push(income);
+            }
+
+            if (allLimits.length <= 1) { // Handle 0 or very small income
+                return { datasets: [{
+                    label: 'No Taxable Income',
+                    data: [income > 0 ? income : 1], // show a small bar even for 0
+                    backgroundColor: 'hsl(220, 80%, 95%)',
+                    combinedRate: 0
+                }],
+                labels: ['Taxable Income']
+                };
+            }
+
+            const datasets = [];
+            for (let i = 0; i < allLimits.length - 1; i++) {
+                const lower = allLimits[i];
+                const upper = allLimits[i+1];
+                const midpoint = lower + 1;
+
+                const fedRate = federalBrackets.find(b => midpoint <= b.limit)?.rate || 0;
+                const bcRate = bcBrackets.find(b => midpoint <= b.limit)?.rate || 0;
+                const combinedRate = (fedRate + bcRate) * 100;
+
+                datasets.push({
+                    label: `$${Math.round(lower).toLocaleString()} - $${Math.round(upper).toLocaleString()}`,
+                    data: [upper - lower],
+                    backgroundColor: `hsl(220, 80%, ${95 - combinedRate * 1.5}%)`,
+                    combinedRate: combinedRate
+                });
+            }
+             return { datasets, labels: ['Taxable Income'] };
+        }
+
+        function updateBreakdownTable(income) {
+            const tableContainer = document.getElementById('tax-breakdown-table');
+            tableContainer.innerHTML = ''; // Clear previous content
+
+            const { datasets } = getChartData(income);
+            let totalTaxCalculated = 0;
+
+            // Header for the breakdown
+            const header = document.createElement('div');
+            header.className = 'flex justify-between items-center font-bold text-gray-800 pb-2 border-b-2 mb-2';
+            header.innerHTML = `
+                <span class="text-lg">Taxes Payable by Bracket</span>
+                <span class="text-lg" id="total-tax-breakdown">$0.00</span>
+            `;
+            tableContainer.appendChild(header);
+
+            // Create a row for each bracket, showing highest bracket on top
+            [...datasets].reverse().forEach(dataset => {
+                const incomeInBracket = dataset.data[0];
+                if (incomeInBracket <= 0) return; // Don't show brackets with no income
+
+                const combinedRate = dataset.combinedRate;
+                const taxInBracket = incomeInBracket * (combinedRate / 100);
+                totalTaxCalculated += taxInBracket;
+
+                const row = document.createElement('div');
+                row.className = 'flex justify-between items-center py-3 border-b border-gray-100';
+
+                const calculationDiv = document.createElement('div');
+                calculationDiv.className = 'text-sm text-gray-600';
+                calculationDiv.innerHTML = `
+                    <div class="font-semibold text-gray-800">${dataset.label}</div>
+                    <div>$${incomeInBracket.toLocaleString('en-US', { maximumFractionDigits: 0 })} x ${combinedRate.toFixed(2)}%</div>
+                `;
+
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'text-lg font-semibold text-blue-600';
+                resultDiv.textContent = `$${taxInBracket.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+                row.appendChild(calculationDiv);
+                row.appendChild(resultDiv);
+                tableContainer.appendChild(row);
+            });
+
+            // Update the total tax in the header
+            const totalTaxBreakdownEl = tableContainer.querySelector('#total-tax-breakdown');
+            if(totalTaxBreakdownEl) {
+               totalTaxBreakdownEl.textContent = `$${totalTaxCalculated.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            }
+        }
+
+
+        function updateChart(income) {
+            const { datasets, labels } = getChartData(income);
+
+            if (taxChart) {
+                taxChart.data.labels = labels;
+                taxChart.data.datasets = datasets;
+                taxChart.update();
+            } else {
+                const ctx = chartCanvas.getContext('2d');
+                taxChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const dataset = context.dataset;
+                                        const incomeInBracket = context.raw.toLocaleString();
+                                        return `${dataset.label}: $${incomeInBracket}`;
+                                    },
+                                    footer: function(tooltipItems) {
+                                        const context = tooltipItems[0];
+                                        const dataset = context.dataset;
+                                        const incomeInBracket = context.raw;
+                                        const taxInBracket = incomeInBracket * (dataset.combinedRate / 100);
+                                        return [
+                                            `Tax Rate: ${dataset.combinedRate.toFixed(2)}%`,
+                                            `Tax Payable: $${taxInBracket.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                        ];
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                stacked: true,
+                                title: {
+                                    display: true,
+                                    text: 'Taxable Income'
+                                }
+                            },
+                            y: {
+                                stacked: true,
+                                title: {
+                                    display: true,
+                                    text: 'Income Amount ($)'
+                                },
+                                ticks: {
+                                     callback: function(value) {
+                                        return '$' + value.toLocaleString();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        // --- Main Update Function ---
+        function updateUI() {
+            const income = parseFloat(incomeNumberInput.value) || 0;
+            const { totalTax, averageRate, combinedMarginalRate, incomeAfterTaxes } = calculateTax(income);
+
+            totalTaxEl.textContent = `$${totalTax.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            afterTaxIncomeEl.textContent = `$${incomeAfterTaxes.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            averageRateEl.textContent = `${averageRate.toFixed(2)}%`;
+            marginalRateEl.textContent = `${combinedMarginalRate.toFixed(2)}%`;
+
+            updateChart(income);
+            updateBreakdownTable(income);
+        }
+
+        // --- Event Listeners ---
+        incomeSliderInput.addEventListener('input', () => {
+            incomeNumberInput.value = incomeSliderInput.value;
+            updateUI();
+        });
+
+        incomeNumberInput.addEventListener('input', () => {
+            if (parseInt(incomeNumberInput.value) > 500000) {
+                incomeNumberInput.value = 500000;
+            }
+             if (parseInt(incomeNumberInput.value) < 0) {
+                incomeNumberInput.value = 0;
+            }
+            incomeSliderInput.value = incomeNumberInput.value;
+            updateUI();
+        });
+
+        // --- Initial Load ---
+        window.addEventListener('load', updateUI);
+
+    </script>
+</body>
+</html>
+
+
+
