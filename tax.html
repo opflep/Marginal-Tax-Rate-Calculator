@@ -3,344 +3,553 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BC Marginal Tax Rate Calculator (2024)</title>
-    <!-- Tailwind CSS for styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js for the visualization -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>BC Marginal Tax Calculator</title>
+    <meta name="description" content="2026 British Columbia + federal marginal and average income tax calculator, with CPP/EI, basic credits and a 2025 comparison.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
+        :root {
+            --bg: #f6f7f9;
+            --card: #ffffff;
+            --text: #1b1f24;
+            --muted: #5f6b7a;
+            --line: #e3e7ec;
+            --accent: #2457d6;
+            --fed: #2457d6;
+            --bc: #0f9d76;
+            --warn: #c2410c;
+            --good: #15803d;
+            --chip: #eef2f8;
+            --highlight: #eaf0ff;
         }
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --bg: #0f1216;
+                --card: #171b21;
+                --text: #e6e9ee;
+                --muted: #98a2b0;
+                --line: #2a3039;
+                --accent: #6d95ff;
+                --fed: #6d95ff;
+                --bc: #34c79c;
+                --warn: #fb923c;
+                --good: #4ade80;
+                --chip: #222832;
+                --highlight: #1f2a44;
+            }
+        }
+        :root[data-theme="dark"] {
+            --bg: #0f1216;
+            --card: #171b21;
+            --text: #e6e9ee;
+            --muted: #98a2b0;
+            --line: #2a3039;
+            --accent: #6d95ff;
+            --fed: #6d95ff;
+            --bc: #34c79c;
+            --warn: #fb923c;
+            --good: #4ade80;
+            --chip: #222832;
+            --highlight: #1f2a44;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.45;
+        }
+        .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 16px 48px; }
+        header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 24px; }
+        h1 { font-size: 1.75rem; margin: 0; letter-spacing: -0.01em; }
+        h2 { font-size: 1.05rem; margin: 0 0 14px; }
+        .sub { color: var(--muted); margin: 4px 0 0; }
+        .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+        .seg { display: inline-flex; background: var(--chip); border-radius: 10px; padding: 3px; }
+        .seg button {
+            border: 0; background: transparent; color: var(--muted); font: inherit; font-weight: 600;
+            padding: 6px 14px; border-radius: 8px; cursor: pointer;
+        }
+        .seg button[aria-pressed="true"] { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+
+        .inputs { display: grid; grid-template-columns: 1fr; gap: 18px; margin-bottom: 20px; }
+        .income-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+        .money { display: flex; align-items: center; background: var(--chip); border-radius: 10px; padding: 6px 12px; }
+        .money span { color: var(--muted); font-size: 1.3rem; margin-right: 4px; }
+        .stepper { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .stepper .money { min-width: 0; }
+        .stepper .money input { width: 100%; max-width: 10ch; }
+        .step { flex: none; }
+        .step {
+            width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line);
+            background: var(--chip); color: var(--text); font: 600 1.2rem 'Inter', sans-serif;
+            cursor: pointer; line-height: 1;
+        }
+        .step:hover { border-color: var(--accent); color: var(--accent); }
+        .money input {
+            width: 10ch; border: 0; background: transparent; color: var(--text);
+            font: 600 1.5rem 'Inter', sans-serif; text-align: right; outline: none;
+        }
+        .money.small span { font-size: 1rem; }
+        .money.small input { font-size: 1rem; width: 8ch; }
+        input[type="range"] { width: 100%; accent-color: var(--accent); }
+        .options { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; color: var(--muted); font-size: .92rem; }
+        .options label { display: flex; align-items: center; gap: 8px; }
+
+        .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .kpi .label { color: var(--muted); font-size: .85rem; font-weight: 500; }
+        .kpi .value { font-size: 1.55rem; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+        .kpi .delta { font-size: .8rem; margin-top: 4px; color: var(--muted); font-variant-numeric: tabular-nums; }
+        .kpi.primary .value { color: var(--accent); }
+        .up { color: var(--warn) !important; }
+        .down { color: var(--good) !important; }
+
+        .grid2 { display: grid; grid-template-columns: 1fr; gap: 20px; margin-bottom: 20px; }
+        @media (min-width: 860px) { .grid2 { grid-template-columns: 1.4fr 1fr; } }
+        .grid2 > * { min-width: 0; }
+        .chart-box { position: relative; height: 320px; }
+
+        table { width: 100%; border-collapse: collapse; font-size: .9rem; font-variant-numeric: tabular-nums; }
+        th, td { text-align: right; padding: 7px 6px; border-bottom: 1px solid var(--line); }
+        th:first-child, td:first-child { text-align: left; }
+        th { color: var(--muted); font-weight: 500; font-size: .8rem; }
+        tr.current td { background: var(--highlight); font-weight: 600; }
+        tr.total td { font-weight: 700; border-bottom: 0; }
+        td.neg { color: var(--good); }
+        .tag { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+        .scroll { overflow-x: auto; }
+
+        .notes { color: var(--muted); font-size: .82rem; margin-top: 24px; }
+        .notes ul { padding-left: 18px; margin: 8px 0; }
+        .notes a { color: var(--accent); }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body>
+<div class="wrap">
+    <header>
+        <div>
+            <h1>BC Marginal Tax Calculator</h1>
+            <p class="sub">Federal + British Columbia personal income tax for <strong id="yearLabel">2026</strong>.</p>
+        </div>
+        <div class="seg" role="group" aria-label="Tax year">
+            <button type="button" data-year="2026" aria-pressed="true">2026</button>
+            <button type="button" data-year="2025" aria-pressed="false">2025</button>
+        </div>
+    </header>
 
-    <div class="container mx-auto px-4 py-8 md:py-12">
-        <header class="text-center mb-8 md:mb-12">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">British Columbia Marginal Tax Rate Calculator</h1>
-            <p class="text-md md:text-lg text-gray-600 mt-2">Visualize your 2024 federal and provincial income taxes.</p>
-        </header>
-
-        <main class="max-w-4xl mx-auto">
-            <!-- Input Section -->
-            <div class="bg-white p-6 rounded-xl shadow-md mb-8">
-                <div class="flex justify-between items-baseline mb-4">
-                    <label for="incomeNumber" class="block text-lg font-medium text-gray-700">Annual Income:</label>
-                    <div class="flex items-center bg-gray-100 p-2 rounded-md">
-                        <span class="text-gray-500 text-2xl mr-2">$</span>
-                        <input type="number" id="incomeNumber" step="1000" class="w-48 text-right bg-transparent text-2xl font-semibold border-none focus:ring-0" value="80000">
-                    </div>
+    <section class="card inputs">
+        <div class="income-row">
+            <label for="incomeNumber"><strong>Annual income</strong></label>
+            <div class="stepper">
+                <button type="button" class="step" data-step="-1000" aria-label="Decrease income by $1,000">−</button>
+                <div class="money">
+                    <span>$</span>
+                    <input type="text" inputmode="numeric" id="incomeNumber" value="90,000" aria-label="Annual income">
                 </div>
-                <input type="range" id="incomeSlider" min="0" max="500000" step="1000" value="80000" class="w-full h-3 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                <button type="button" class="step" data-step="1000" aria-label="Increase income by $1,000">+</button>
             </div>
+        </div>
+        <input type="range" id="incomeSlider" min="0" max="500000" step="1000" value="90000" aria-label="Annual income slider">
+        <div class="options">
+            <label><input type="checkbox" id="isEmployment" checked> Employment income (deduct CPP/EI, claim Canada employment amount)</label>
+            <label>RRSP / FHSA deduction
+                <span class="money small"><span>$</span><input type="text" inputmode="numeric" id="rrspNumber" value="0" aria-label="RRSP deduction"></span>
+            </label>
+        </div>
+    </section>
 
-            <!-- Results Section -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-                <div class="bg-white p-6 rounded-xl shadow-md text-center">
-                    <h3 class="text-lg font-medium text-gray-500">Total Tax Payable</h3>
-                    <p id="total-tax" class="text-3xl font-bold text-blue-600 mt-2">$0.00</p>
-                </div>
-                <div class="bg-white p-6 rounded-xl shadow-md text-center">
-                    <h3 class="text-lg font-medium text-gray-500">Income After Taxes</h3>
-                    <p id="after-tax-income" class="text-3xl font-bold text-indigo-600 mt-2">$0.00</p>
-                </div>
-                <div class="bg-white p-6 rounded-xl shadow-md text-center">
-                    <h3 class="text-lg font-medium text-gray-500">Average Tax Rate</h3>
-                    <p id="average-rate" class="text-3xl font-bold text-green-600 mt-2">0.00%</p>
-                </div>
-                <div class="bg-white p-6 rounded-xl shadow-md text-center">
-                    <h3 class="text-lg font-medium text-gray-500">Marginal Tax Rate</h3>
-                    <p id="marginal-rate" class="text-3xl font-bold text-purple-600 mt-2">0.00%</p>
-                </div>
+    <section class="kpis">
+        <div class="card kpi primary">
+            <div class="label">Marginal rate</div>
+            <div class="value" id="kMarginal">–</div>
+            <div class="delta" id="kMarginalNote">–</div>
+        </div>
+        <div class="card kpi">
+            <div class="label">Average income tax rate</div>
+            <div class="value" id="kAverage">–</div>
+            <div class="delta" id="kAverageDelta"></div>
+        </div>
+        <div class="card kpi">
+            <div class="label">Income tax</div>
+            <div class="value" id="kTax">–</div>
+            <div class="delta" id="kTaxDelta"></div>
+        </div>
+        <div class="card kpi">
+            <div class="label">CPP + EI</div>
+            <div class="value" id="kPayroll">–</div>
+            <div class="delta" id="kPayrollNote"></div>
+        </div>
+        <div class="card kpi">
+            <div class="label">Take-home pay</div>
+            <div class="value" id="kNet">–</div>
+            <div class="delta" id="kNetMonthly"></div>
+        </div>
+    </section>
+
+    <section class="grid2">
+        <div class="card">
+            <h2>Marginal rate by income</h2>
+            <div class="chart-box"><canvas id="rateChart" aria-label="Marginal and average tax rate by income"></canvas></div>
+        </div>
+        <div class="card">
+            <h2>Where the tax comes from</h2>
+            <div class="scroll">
+                <table>
+                    <thead><tr><th></th><th>Federal</th><th>BC</th></tr></thead>
+                    <tbody id="breakdownBody"></tbody>
+                </table>
             </div>
+        </div>
+    </section>
 
-            <!-- Visualization Section -->
-            <div class="bg-white p-6 rounded-xl shadow-md">
-                <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Income Tax Breakdown</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                    <!-- Left Column: Chart -->
-                    <div class="h-[48rem] w-full">
-                         <canvas id="taxChart"></canvas>
-                    </div>
-                    <!-- Right Column: Breakdown Table -->
-                    <div id="tax-breakdown-table" class="space-y-2">
-                        <!-- Dynamic content will be generated here by script -->
-                    </div>
-                </div>
-            </div>
-             <footer class="text-center mt-8 text-sm text-gray-500">
-                <p>This calculator is for informational purposes only and should not be considered financial advice. It uses the 2024 tax brackets and does not account for all possible deductions or credits.</p>
-            </footer>
-        </main>
-    </div>
+    <section class="card">
+        <h2>Combined brackets for <span id="yearLabel2">2026</span></h2>
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Taxable income</th><th>Federal</th><th>BC</th><th>Combined</th><th>Your income in band</th><th>Tax before credits</th></tr></thead>
+                <tbody id="bracketBody"></tbody>
+            </table>
+        </div>
+    </section>
 
-    <script>
-        // 2024 Tax Bracket Data
-        const federalBrackets = [
-            { limit: 55867, rate: 0.15 },
-            { limit: 111733, rate: 0.205 },
-            { limit: 173205, rate: 0.26 },
-            { limit: 246752, rate: 0.29 },
-            { limit: Infinity, rate: 0.33 }
+    <footer class="notes">
+        <p><strong>What changed for 2026:</strong> the lowest federal rate drops to 14% for the full year (14.5% blended in 2025), and BC raises its lowest rate from 5.06% to 5.60%. Both federal and BC brackets are indexed (federal 2.0%, BC 2.2%). BC credits are also valued at 5.60%, and the BC tax reduction rises to $690.</p>
+        <ul>
+            <li>Marginal rate is the tax on your next $100 of income, so it includes the federal BPA phase-out and the BC tax reduction clawback. Statutory bracket rate is shown underneath.</li>
+            <li>Credits modelled: basic personal amounts, Canada employment amount, CPP (base) and EI credits, BC tax reduction. Enhanced CPP and CPP2 are deducted from income.</li>
+            <li>Not modelled: dividends, capital gains, pension/age/disability credits, the federal top-up credit, OAS clawback and benefits such as the Canada workers benefit.</li>
+            <li>Sources: <a href="https://www.canada.ca/en/revenue-agency/services/tax/individuals/tax-rates-brackets/current-year.html" target="_blank" rel="noopener">CRA tax brackets</a>, <a href="https://www2.gov.bc.ca/gov/content/taxes/income-taxes/personal/tax-rates" target="_blank" rel="noopener">BC tax rates</a>, <a href="https://www2.gov.bc.ca/gov/content/taxes/income-taxes/personal/credits/basic" target="_blank" rel="noopener">BC basic credits</a>.</li>
+        </ul>
+        <p>For information only; not financial or tax advice.</p>
+    </footer>
+</div>
+
+<script>
+// --- Tax data -----------------------------------------------------------------
+const TAX_YEARS = {
+    2026: {
+        federal: {
+            brackets: [
+                { limit: 58523, rate: 0.14 },
+                { limit: 117045, rate: 0.205 },
+                { limit: 181440, rate: 0.26 },
+                { limit: 258482, rate: 0.29 },
+                { limit: Infinity, rate: 0.33 }
+            ],
+            creditRate: 0.14,
+            bpaMax: 16452, bpaMin: 14829,        // BPA phases down between the 4th and 5th thresholds
+            employmentAmount: 1501
+        },
+        bc: {
+            brackets: [
+                { limit: 50363, rate: 0.056 },
+                { limit: 100728, rate: 0.077 },
+                { limit: 115648, rate: 0.105 },
+                { limit: 140430, rate: 0.1229 },
+                { limit: 190405, rate: 0.147 },
+                { limit: 265545, rate: 0.168 },
+                { limit: Infinity, rate: 0.205 }
+            ],
+            creditRate: 0.056,
+            bpa: 13216,
+            reduction: { max: 690, threshold: 25570, rate: 0.0356 }
+        },
+        cpp: { rate: 0.0595, baseRate: 0.0495, exemption: 3500, ympe: 74600, cpp2Rate: 0.04, yampe: 85000 },
+        ei: { rate: 0.0163, maxInsurable: 68900 }
+    },
+    2025: {
+        federal: {
+            brackets: [
+                { limit: 57375, rate: 0.145 },
+                { limit: 114750, rate: 0.205 },
+                { limit: 177882, rate: 0.26 },
+                { limit: 253414, rate: 0.29 },
+                { limit: Infinity, rate: 0.33 }
+            ],
+            creditRate: 0.145,
+            bpaMax: 16129, bpaMin: 14538,
+            employmentAmount: 1471
+        },
+        bc: {
+            brackets: [
+                { limit: 49279, rate: 0.0506 },
+                { limit: 98560, rate: 0.077 },
+                { limit: 113158, rate: 0.105 },
+                { limit: 137407, rate: 0.1229 },
+                { limit: 186306, rate: 0.147 },
+                { limit: 259829, rate: 0.168 },
+                { limit: Infinity, rate: 0.205 }
+            ],
+            creditRate: 0.0506,
+            bpa: 12932,
+            reduction: { max: 562, threshold: 25020, rate: 0.0356 }
+        },
+        cpp: { rate: 0.0595, baseRate: 0.0495, exemption: 3500, ympe: 71300, cpp2Rate: 0.04, yampe: 81200 },
+        ei: { rate: 0.0164, maxInsurable: 65700 }
+    }
+};
+
+// --- Calculation --------------------------------------------------------------
+function bracketTax(income, brackets) {
+    let tax = 0, lower = 0;
+    for (const b of brackets) {
+        if (income <= lower) break;
+        tax += (Math.min(income, b.limit) - lower) * b.rate;
+        lower = b.limit;
+    }
+    return tax;
+}
+
+function bracketRate(income, brackets) {
+    return brackets.find(b => income < b.limit).rate;
+}
+
+function federalBpa(netIncome, fed) {
+    const start = fed.brackets[2].limit, end = fed.brackets[3].limit;
+    if (netIncome <= start) return fed.bpaMax;
+    if (netIncome >= end) return fed.bpaMin;
+    return fed.bpaMax - (fed.bpaMax - fed.bpaMin) * (netIncome - start) / (end - start);
+}
+
+function payroll(earnings, y) {
+    const pensionable = Math.max(0, Math.min(earnings, y.cpp.ympe) - y.cpp.exemption);
+    const cpp1 = pensionable * y.cpp.rate;
+    const cppBase = pensionable * y.cpp.baseRate;          // credit
+    const cppEnhanced = cpp1 - cppBase;                    // deduction
+    const cpp2 = Math.max(0, Math.min(earnings, y.cpp.yampe) - y.cpp.ympe) * y.cpp.cpp2Rate; // deduction
+    const ei = Math.min(earnings, y.ei.maxInsurable) * y.ei.rate; // credit
+    return { cpp: cpp1 + cpp2, cppBase, cppDeduction: cppEnhanced + cpp2, ei };
+}
+
+function calculate(income, year, opts = {}) {
+    const y = TAX_YEARS[year];
+    const employed = opts.employed !== false;
+    const rrsp = Math.min(opts.rrsp || 0, income);
+    const p = employed ? payroll(income, y) : { cpp: 0, cppBase: 0, cppDeduction: 0, ei: 0 };
+    const taxable = Math.max(0, income - rrsp - p.cppDeduction);
+
+    // Federal
+    const fedGross = bracketTax(taxable, y.federal.brackets);
+    const fedBpa = federalBpa(taxable, y.federal);
+    const cea = employed ? Math.min(y.federal.employmentAmount, income) : 0;
+    const fedCredits = (fedBpa + cea + p.cppBase + p.ei) * y.federal.creditRate;
+    const fedTax = Math.max(0, fedGross - fedCredits);
+
+    // British Columbia
+    const bcGross = bracketTax(taxable, y.bc.brackets);
+    const bcCredits = (y.bc.bpa + p.cppBase + p.ei) * y.bc.creditRate;
+    const bcAfterCredits = Math.max(0, bcGross - bcCredits);
+    const r = y.bc.reduction;
+    const bcReductionAvail = Math.max(0, r.max - Math.max(0, taxable - r.threshold) * r.rate);
+    const bcReduction = Math.min(bcAfterCredits, bcReductionAvail);
+    const bcTax = bcAfterCredits - bcReduction;
+
+    const incomeTax = fedTax + bcTax;
+    const payrollTotal = p.cpp + p.ei;
+    return {
+        income, taxable, rrsp,
+        fedGross, fedBpa, cea, fedCredits, fedTax,
+        bcGross, bcCredits, bcReduction, bcTax,
+        cpp: p.cpp, ei: p.ei, payrollTotal,
+        incomeTax,
+        net: income - incomeTax - payrollTotal - rrsp,
+        averageRate: income > 0 ? incomeTax / income : 0,
+        statutoryRate: bracketRate(taxable, y.federal.brackets) + bracketRate(taxable, y.bc.brackets)
+    };
+}
+
+// Effective marginal rate on the next $100: captures credit phase-outs and clawbacks.
+function marginalRate(income, year, opts) {
+    const step = 100;
+    return (calculate(income + step, year, opts).incomeTax - calculate(income, year, opts).incomeTax) / step;
+}
+
+if (typeof module !== 'undefined') module.exports = { TAX_YEARS, calculate, marginalRate };
+</script>
+
+<script>
+// --- UI -----------------------------------------------------------------------
+if (typeof document !== 'undefined') {
+    const $ = id => document.getElementById(id);
+    const money = (v, d = 0) => '$' + v.toLocaleString('en-CA', { minimumFractionDigits: d, maximumFractionDigits: d });
+    const pct = (v, d = 2) => (v * 100).toFixed(d) + '%';
+    const parseMoney = s => Math.max(0, parseFloat(String(s).replace(/[^0-9.]/g, '')) || 0);
+    const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+    let year = 2026;
+    let chart;
+
+    function getOpts() {
+        return { employed: $('isEmployment').checked, rrsp: parseMoney($('rrspNumber').value) };
+    }
+
+    function setDelta(el, diff, fmt, epsilon) {
+        if (Math.abs(diff) < epsilon) {
+            el.textContent = 'Same as ' + (year === 2026 ? 2025 : 2026);
+            el.className = 'delta';
+            return;
+        }
+        const sign = diff > 0 ? '+' : '−';
+        el.textContent = `${sign}${fmt(Math.abs(diff))} vs ${year === 2026 ? 2025 : 2026}`;
+        el.className = 'delta ' + (diff > 0 ? 'up' : 'down');
+    }
+
+    function renderBreakdown(r) {
+        const rows = [
+            ['Tax on taxable income', r.fedGross, r.bcGross],
+            ['Non-refundable credits', -r.fedCredits, -r.bcCredits],
+            ['BC tax reduction', null, -r.bcReduction],
         ];
+        let html = `<tr><td>Taxable income</td><td colspan="2">${money(r.taxable)}</td></tr>`;
+        for (const [label, f, b] of rows) {
+            const cell = v => v === null ? '<td>–</td>' : `<td class="${v < 0 ? 'neg' : ''}">${v < 0 ? '−' : ''}${money(Math.abs(v))}</td>`;
+            html += `<tr><td>${label}</td>${cell(f)}${cell(b)}</tr>`;
+        }
+        html += `<tr class="total"><td>Income tax</td><td>${money(r.fedTax)}</td><td>${money(r.bcTax)}</td></tr>`;
+        $('breakdownBody').innerHTML = html;
+    }
 
-        const bcBrackets = [
-            { limit: 47937, rate: 0.0506 },
-            { limit: 95875, rate: 0.077 },
-            { limit: 110076, rate: 0.105 },
-            { limit: 133664, rate: 0.1229 },
-            { limit: 181232, rate: 0.147 },
-            { limit: 252752, rate: 0.168 },
-            { limit: Infinity, rate: 0.205 }
+    function renderBrackets(r) {
+        const y = TAX_YEARS[year];
+        const limits = [...new Set([0, ...y.federal.brackets.map(b => b.limit), ...y.bc.brackets.map(b => b.limit)])]
+            .sort((a, b) => a - b);
+        let html = '';
+        for (let i = 0; i < limits.length - 1; i++) {
+            const lo = limits[i], hi = limits[i + 1];
+            const fr = y.federal.brackets.find(b => lo < b.limit).rate;
+            const br = y.bc.brackets.find(b => lo < b.limit).rate;
+            const inBand = Math.max(0, Math.min(r.taxable, hi) - lo);
+            const current = r.taxable >= lo && r.taxable < hi;
+            const range = hi === Infinity ? `Over ${money(lo)}` : `${money(lo)} – ${money(hi)}`;
+            html += `<tr class="${current ? 'current' : ''}">
+                <td>${range}</td><td>${pct(fr)}</td><td>${pct(br)}</td><td><strong>${pct(fr + br)}</strong></td>
+                <td>${inBand ? money(inBand) : '–'}</td><td>${inBand ? money(inBand * (fr + br)) : '–'}</td></tr>`;
+        }
+        $('bracketBody').innerHTML = html;
+    }
+
+    function chartData(opts) {
+        const max = 400000, step = 1000;
+        const marginal = [], average = [];
+        for (let x = 0; x <= max; x += step) {
+            marginal.push({ x, y: marginalRate(x, year, opts) * 100 });
+            average.push({ x, y: calculate(x, year, opts).averageRate * 100 });
+        }
+        return { marginal, average };
+    }
+
+    function renderChart(income, opts) {
+        const { marginal, average } = chartData(opts);
+        const here = Math.min(income, 400000);
+        const point = [{ x: here, y: marginalRate(income, year, opts) * 100 }];
+        const grid = css('--line'), muted = css('--muted');
+        const datasets = [
+            { label: 'Marginal rate', data: marginal, stepped: true, borderColor: css('--accent'), borderWidth: 2, pointRadius: 0, fill: false },
+            { label: 'Average rate', data: average, borderColor: css('--bc'), borderWidth: 2, borderDash: [5, 4], pointRadius: 0, fill: false },
+            { label: 'You', data: point, type: 'scatter', pointRadius: 6, pointBackgroundColor: css('--warn'), pointBorderColor: css('--card'), pointBorderWidth: 2 }
         ];
-
-        const incomeNumberInput = document.getElementById('incomeNumber');
-        const incomeSliderInput = document.getElementById('incomeSlider');
-        const totalTaxEl = document.getElementById('total-tax');
-        const afterTaxIncomeEl = document.getElementById('after-tax-income');
-        const averageRateEl = document.getElementById('average-rate');
-        const marginalRateEl = document.getElementById('marginal-rate');
-        const chartCanvas = document.getElementById('taxChart');
-        let taxChart;
-
-        // --- Core Calculation Logic ---
-        function calculateTax(income) {
-            let federalTax = 0;
-            let bcTax = 0;
-            let lastFedLimit = 0;
-            let lastBcLimit = 0;
-
-            // Calculate Federal Tax
-            for (const bracket of federalBrackets) {
-                if (income > lastFedLimit) {
-                    const taxableInBracket = Math.min(income, bracket.limit) - lastFedLimit;
-                    federalTax += taxableInBracket * bracket.rate;
-                }
-                lastFedLimit = bracket.limit;
-            }
-
-            // Calculate BC Tax
-            for (const bracket of bcBrackets) {
-                if (income > lastBcLimit) {
-                    const taxableInBracket = Math.min(income, bracket.limit) - lastBcLimit;
-                    bcTax += taxableInBracket * bracket.rate;
-                }
-                lastBcLimit = bracket.limit;
-            }
-            
-            const totalTax = federalTax + bcTax;
-            const averageRate = income > 0 ? (totalTax / income) * 100 : 0;
-            const incomeAfterTaxes = income - totalTax;
-
-            // Find Marginal Rate
-            const federalMarginalRate = federalBrackets.find(b => income <= b.limit)?.rate || 0;
-            const bcMarginalRate = bcBrackets.find(b => income <= b.limit)?.rate || 0;
-            const combinedMarginalRate = (federalMarginalRate + bcMarginalRate) * 100;
-
-
-            return { totalTax, averageRate, combinedMarginalRate, federalTax, bcTax, incomeAfterTaxes };
+        if (chart) {
+            chart.data.datasets = datasets;
+            chart.update('none');
+            return;
         }
-
-        // --- Chart Creation and Update Logic ---
-        function getChartData(income) {
-            const allLimits = [...new Set([0, ...federalBrackets.map(b => b.limit), ...bcBrackets.map(b => b.limit)])]
-                .filter(limit => limit !== Infinity && limit <= income)
-                .sort((a, b) => a - b);
-            
-            if (income > 0 && !allLimits.includes(income)) {
-                allLimits.push(income);
-            }
-
-            if (allLimits.length <= 1) { // Handle 0 or very small income
-                return { datasets: [{
-                    label: 'No Taxable Income',
-                    data: [income > 0 ? income : 1], // show a small bar even for 0
-                    backgroundColor: 'hsl(220, 80%, 95%)',
-                    combinedRate: 0
-                }],
-                labels: ['Taxable Income']
-                };
-            }
-
-            const datasets = [];
-            for (let i = 0; i < allLimits.length - 1; i++) {
-                const lower = allLimits[i];
-                const upper = allLimits[i+1];
-                const midpoint = lower + 1;
-
-                const fedRate = federalBrackets.find(b => midpoint <= b.limit)?.rate || 0;
-                const bcRate = bcBrackets.find(b => midpoint <= b.limit)?.rate || 0;
-                const combinedRate = (fedRate + bcRate) * 100;
-
-                datasets.push({
-                    label: `$${Math.round(lower).toLocaleString()} - $${Math.round(upper).toLocaleString()}`,
-                    data: [upper - lower],
-                    backgroundColor: `hsl(220, 80%, ${95 - combinedRate * 1.5}%)`,
-                    combinedRate: combinedRate
-                });
-            }
-             return { datasets, labels: ['Taxable Income'] };
-        }
-
-        function updateBreakdownTable(income) {
-            const tableContainer = document.getElementById('tax-breakdown-table');
-            tableContainer.innerHTML = ''; // Clear previous content
-
-            const { datasets } = getChartData(income);
-            let totalTaxCalculated = 0;
-
-            // Header for the breakdown
-            const header = document.createElement('div');
-            header.className = 'flex justify-between items-center font-bold text-gray-800 pb-2 border-b-2 mb-2';
-            header.innerHTML = `
-                <span class="text-lg">Taxes Payable by Bracket</span>
-                <span class="text-lg" id="total-tax-breakdown">$0.00</span>
-            `;
-            tableContainer.appendChild(header);
-
-            // Create a row for each bracket, showing highest bracket on top
-            [...datasets].reverse().forEach(dataset => {
-                const incomeInBracket = dataset.data[0];
-                if (incomeInBracket <= 0) return; // Don't show brackets with no income
-
-                const combinedRate = dataset.combinedRate;
-                const taxInBracket = incomeInBracket * (combinedRate / 100);
-                totalTaxCalculated += taxInBracket;
-
-                const row = document.createElement('div');
-                row.className = 'flex justify-between items-center py-3 border-b border-gray-100';
-
-                const calculationDiv = document.createElement('div');
-                calculationDiv.className = 'text-sm text-gray-600';
-                calculationDiv.innerHTML = `
-                    <div class="font-semibold text-gray-800">${dataset.label}</div>
-                    <div>$${incomeInBracket.toLocaleString('en-US', { maximumFractionDigits: 0 })} x ${combinedRate.toFixed(2)}%</div>
-                `;
-
-                const resultDiv = document.createElement('div');
-                resultDiv.className = 'text-lg font-semibold text-blue-600';
-                resultDiv.textContent = `$${taxInBracket.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-                row.appendChild(calculationDiv);
-                row.appendChild(resultDiv);
-                tableContainer.appendChild(row);
-            });
-
-            // Update the total tax in the header
-            const totalTaxBreakdownEl = tableContainer.querySelector('#total-tax-breakdown');
-            if(totalTaxBreakdownEl) {
-               totalTaxBreakdownEl.textContent = `$${totalTaxCalculated.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            }
-        }
-
-
-        function updateChart(income) {
-            const { datasets, labels } = getChartData(income);
-
-            if (taxChart) {
-                taxChart.data.labels = labels;
-                taxChart.data.datasets = datasets;
-                taxChart.update();
-            } else {
-                const ctx = chartCanvas.getContext('2d');
-                taxChart = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: datasets
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        const dataset = context.dataset;
-                                        const incomeInBracket = context.raw.toLocaleString();
-                                        return `${dataset.label}: $${incomeInBracket}`;
-                                    },
-                                    footer: function(tooltipItems) {
-                                        const context = tooltipItems[0];
-                                        const dataset = context.dataset;
-                                        const incomeInBracket = context.raw;
-                                        const taxInBracket = incomeInBracket * (dataset.combinedRate / 100);
-                                        return [
-                                            `Tax Rate: ${dataset.combinedRate.toFixed(2)}%`,
-                                            `Tax Payable: $${taxInBracket.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                        ];
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            x: {
-                                stacked: true,
-                                title: {
-                                    display: true,
-                                    text: 'Taxable Income'
-                                }
-                            },
-                            y: {
-                                stacked: true,
-                                title: {
-                                    display: true,
-                                    text: 'Income Amount ($)'
-                                },
-                                ticks: {
-                                     callback: function(value) {
-                                        return '$' + value.toLocaleString();
-                                    }
-                                }
-                            }
+        chart = new Chart($('rateChart'), {
+            type: 'line',
+            data: { datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: false,
+                interaction: { mode: 'nearest', axis: 'x', intersect: false },
+                scales: {
+                    x: { type: 'linear', min: 0, max: 400000, grid: { color: grid }, ticks: { color: muted, callback: v => '$' + v / 1000 + 'k' } },
+                    y: { min: 0, max: 60, grid: { color: grid }, ticks: { color: muted, callback: v => v + '%' } }
+                },
+                plugins: {
+                    legend: { labels: { color: muted, boxWidth: 12, usePointStyle: true } },
+                    tooltip: {
+                        callbacks: {
+                            title: items => money(items[0].parsed.x),
+                            label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(2)}%`
                         }
                     }
-                });
+                }
             }
-        }
-        
-        // --- Main Update Function ---
-        function updateUI() {
-            const income = parseFloat(incomeNumberInput.value) || 0;
-            const { totalTax, averageRate, combinedMarginalRate, incomeAfterTaxes } = calculateTax(income);
-
-            totalTaxEl.textContent = `$${totalTax.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            afterTaxIncomeEl.textContent = `$${incomeAfterTaxes.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            averageRateEl.textContent = `${averageRate.toFixed(2)}%`;
-            marginalRateEl.textContent = `${combinedMarginalRate.toFixed(2)}%`;
-
-            updateChart(income);
-            updateBreakdownTable(income);
-        }
-
-        // --- Event Listeners ---
-        incomeSliderInput.addEventListener('input', () => {
-            incomeNumberInput.value = incomeSliderInput.value;
-            updateUI();
         });
+    }
 
-        incomeNumberInput.addEventListener('input', () => {
-            if (parseInt(incomeNumberInput.value) > 500000) {
-                incomeNumberInput.value = 500000;
-            }
-             if (parseInt(incomeNumberInput.value) < 0) {
-                incomeNumberInput.value = 0;
-            }
-            incomeSliderInput.value = incomeNumberInput.value;
-            updateUI();
-        });
+    function update() {
+        const income = parseMoney($('incomeNumber').value);
+        const opts = getOpts();
+        const other = year === 2026 ? 2025 : 2026;
+        const r = calculate(income, year, opts);
+        const prev = calculate(income, other, opts);
+        const m = marginalRate(income, year, opts);
+        const mPrev = marginalRate(income, other, opts);
 
-        // --- Initial Load ---
-        window.addEventListener('load', updateUI);
+        $('yearLabel').textContent = year;
+        $('yearLabel2').textContent = year;
+        $('kMarginal').textContent = pct(m);
+        $('kMarginalNote').textContent = Math.abs(m - r.statutoryRate) > 0.0005
+            ? `Bracket rate ${pct(r.statutoryRate)}, adjusted for credits and clawbacks`
+            : `${pct(mPrev)} in ${other}`;
+        $('kAverage').textContent = pct(r.averageRate);
+        setDelta($('kAverageDelta'), r.averageRate - prev.averageRate, v => (v * 100).toFixed(2) + ' pts', 0.00005);
+        $('kTax').textContent = money(r.incomeTax);
+        setDelta($('kTaxDelta'), r.incomeTax - prev.incomeTax, money, 0.5);
+        $('kPayroll').textContent = money(r.payrollTotal);
+        $('kPayrollNote').textContent = opts.employed ? `CPP ${money(r.cpp)} · EI ${money(r.ei)}` : 'Not employment income';
+        $('kNet').textContent = money(r.net);
+        $('kNetMonthly').textContent = `${money(r.net / 12)} / month` + (r.rrsp ? ' after RRSP' : '');
 
-    </script>
+        renderBreakdown(r);
+        renderBrackets(r);
+        renderChart(income, opts);
+    }
+
+    function formatInput(el) {
+        const v = parseMoney(el.value);
+        el.value = v.toLocaleString('en-CA');
+    }
+
+    function setIncome(v) {
+        v = Math.max(0, v);
+        $('incomeNumber').value = v.toLocaleString('en-CA');
+        $('incomeSlider').value = Math.min(500000, v);
+        update();
+    }
+
+    document.querySelectorAll('.step').forEach(btn => btn.addEventListener('click', () => {
+        const v = parseMoney($('incomeNumber').value) + Number(btn.dataset.step);
+        setIncome(Math.round(v / 1000) * 1000);
+    }));
+    $('incomeNumber').addEventListener('keydown', e => {
+        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+        e.preventDefault();
+        document.querySelector(`.step[data-step="${e.key === 'ArrowUp' ? 1000 : -1000}"]`).click();
+    });
+
+    $('incomeSlider').addEventListener('input', e => {
+        $('incomeNumber').value = Number(e.target.value).toLocaleString('en-CA');
+        update();
+    });
+    $('incomeNumber').addEventListener('input', () => {
+        $('incomeSlider').value = Math.min(500000, parseMoney($('incomeNumber').value));
+        update();
+    });
+    $('incomeNumber').addEventListener('blur', e => formatInput(e.target));
+    $('rrspNumber').addEventListener('input', update);
+    $('rrspNumber').addEventListener('blur', e => formatInput(e.target));
+    $('isEmployment').addEventListener('change', update);
+    document.querySelectorAll('.seg button').forEach(btn => btn.addEventListener('click', () => {
+        year = Number(btn.dataset.year);
+        document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+        update();
+    }));
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { chart?.destroy(); chart = null; update(); });
+
+    update();
+}
+</script>
 </body>
 </html>
-
-
-
